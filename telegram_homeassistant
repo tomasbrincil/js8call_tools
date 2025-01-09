@@ -1,0 +1,53 @@
+import telebot
+from js8net import *
+import re
+import os
+from homeassistant_api import Client
+
+URL = 'http://homeassistant.local:8123/api'
+TOKEN = 'xxxxx'
+client = Client(URL, TOKEN)
+
+#teplota = client.get_entity(entity_id='sensor.wh2650a_v1_7_6_outdoor_temperature')
+#print(teplota.state.state)
+
+
+
+start_net("127.0.0.1", 2442)
+print("Connected to JS8Call API")
+bot = telebot.TeleBot("xxx")
+print("Connected to Telegram BOT API")
+#bot.infinity_polling()
+print("Set polling")
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+	bot.reply_to(message, "Yo Mama's JS8bot. Write:\n/enable to start parsing messages\n/send your message to be sent on air")
+
+@bot.message_handler(commands=['enable'])
+def js8call_connect(message):
+	bot.reply_to(message, "Enable parsing JS8 messages")
+	pattern = 'T\?'
+	while(True):
+		if(not(rx_queue.empty())):
+			with rx_lock:
+				msg=rx_queue.get()
+				if(msg['type']=="RX.DIRECTED"):
+					if re.search(pattern, msg['params']['TEXT']):
+						teplota = client.get_entity(entity_id='sensor.wh2650a_v1_7_6_outdoor_temperature')
+						print(teplota.state.state)
+						bot.send_message(message.chat.id, "T AIR " + teplota.state.state + " C")
+						send_message("T AIR " + teplota.state.state + " C")
+						print("T AIR " + teplota.state.state + " C")
+					print(msg['params']['TEXT'])
+					bot.send_message(message.chat.id, msg['params']['TEXT'])
+			time.sleep(0.1)
+
+@bot.message_handler(regexp="/send")
+def echo_all(message):
+	bot.reply_to(message, "TX: " + message.text[6:])
+	send_message(message.text[6:])
+	print("TX: "+ message.text[6:])
+
+bot.infinity_polling(interval=0, timeout=20)
+print("Set polling")
