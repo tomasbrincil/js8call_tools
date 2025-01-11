@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+# coding: utf-8
+from js8net import *
+import smtplib
+import re
+import requests
+from email.message import EmailMessage
+from datetime import datetime
+
+start_net("127.0.0.1", 2442)
+print("Connected to JS8Call API")
+
+
+#OK1BT MAIL TO ME@TOMASBRINCIL.CZ TESTOVACI ZPRAVA
+#OK4RM: OK1BT MSG MAIL TO ME@TOMASBRINCIL.CZ TESTOVACI ZPRAVA FROM OK1BT
+#OK1MDX: OK1BT MSG SMS TO +420732698324 TESTOVACI ZPRAVA
+pattern = 'MAIL TO'
+pattern_sms = 'SMS TO'
+while(True):
+	print('HB')
+	if(not(rx_queue.empty())):
+		with rx_lock:
+			msg=rx_queue.get()
+			if(msg['type']=="RX.DIRECTED"):
+				print("Prijata zprava pro OK1BT")
+				if re.search(pattern, msg['params']['TEXT']):
+					print("Zprava odpovida poslani mailu")
+					datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+					# creates SMTP session
+					s = smtplib.SMTP('postevak.ok1bt.cz', 587)
+					# start TLS for security
+					s.starttls()
+					# Authentication
+					s.login("qsl@ok1bt.cz", "xxx")
+					print(msg['params']['TEXT'])
+					msgs = msg['params']['TEXT'].split()
+					# sending the mail
+					#s.sendmail("qsl@ok1bt.cz", "me@tomasbrincil.cz", message)
+					emsg = EmailMessage()
+					msg2bs = msgs[0] + ' ' + msg['params']['TEXT'].split(" ", 6)[-1]
+					emsg.set_content(msg2bs)
+					emsg['Subject'] = 'JS8Call OK1BT gateway'
+					print("Subject")
+					print(emsg['Subject'])
+					emsg['From'] = "qsl@ok1bt.cz"
+					print("From:")
+					print(emsg['From'])
+					emsg['To'] = msgs[4]
+					print("To:")
+					print(emsg['To'])
+					print("Msg:")
+					print(msg2bs)
+					js8_ack = msgs[0] + ' ACK'
+					send_message(js8_ack)
+					s.send_message(emsg)
+					s.quit()
+				if re.search(pattern_sms, msg['params']['TEXT']):
+					print("Zprava odpovida poslani smsky")
+					datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+					msgs = msg['params']['TEXT'].split()
+					url_token = 'https://app.gosms.eu/oauth/v2/token'
+					data_token = {"client_id" : "xxx", "client_secret" : "xxx", "grant_type":"client_credentials"}
+					x = requests.post(url_token, data_token)
+					access_token = x.json()['access_token']
+					#print(access_token)
+					url_send = 'https://app.gosms.eu/api/v1/messages?access_token=' + access_token
+					#print(url_send)
+					sms_text = msgs[0] + ' ' + msg['params']['TEXT'].split(" ", 6)[-1]
+					tel = msgs[4]
+					data_send = {"message": sms_text, "recipients": tel, "channel": 436321}
+					print(data_send)
+					x = requests.post(url_send, json = data_send)
+					js8_ack = msgs[0] + ' ACK'
+					send_message(js8_ack)
+	time.sleep(1)
